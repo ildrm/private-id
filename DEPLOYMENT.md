@@ -1,0 +1,3 @@
+# Deployment
+
+Deploy this repository on the PrivateID server only. Supply a dedicated PostgreSQL URL, a 32+ byte random proof secret from a secret manager, the public HTTPS issuer URL, TLS database settings, and an allowlisted reverse proxy. Run one application replica with the current serialized durable-state adapter; multi-replica deployment requires replacing it with row-level repositories and distributed replay coordination. Back up PostgreSQL, test restore procedures, rotate signing keys through a managed KMS before production, and alert on `/health`, `/ready`, authentication failures, and proof-verification errors.

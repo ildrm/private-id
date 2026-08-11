@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS verifier_applications(id uuid PRIMARY KEY,owner_id uuid NOT NULL REFERENCES users(id),name text NOT NULL,client_id text UNIQUE NOT NULL,secret_hash text NOT NULL,redirect_uris text[] NOT NULL,allowed_claims text[] NOT NULL,webhook_url text,environment text NOT NULL,status text NOT NULL,created_at timestamptz NOT NULL);
+CREATE TABLE IF NOT EXISTS trust_registry(id uuid PRIMARY KEY,issuer_name text NOT NULL,issuer_type text NOT NULL,jurisdiction char(2) NOT NULL,assurance_level text NOT NULL,supported_credentials text[] NOT NULL,status text NOT NULL,trusted_since timestamptz NOT NULL,status_endpoint text);
+CREATE TABLE IF NOT EXISTS revoked_application_access(user_id uuid NOT NULL REFERENCES users(id),client_id text NOT NULL,revoked_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,client_id));
+CREATE INDEX IF NOT EXISTS proof_requests_client_status_idx ON proof_requests(client_id,status,created_at);

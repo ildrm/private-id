@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment: { POSTGRES_DB: privateid_db, POSTGRES_USER: privateid, POSTGRES_PASSWORD: privateid_dev }
+    volumes: [privateid-data:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U privateid -d privateid_db"], interval: 5s, timeout: 3s, retries: 20 }
+  app:
+    build: .
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgres://privateid:privateid_dev@db:5432/privateid_db
+      PRIVATEID_PROOF_SECRET: ${PRIVATEID_PROOF_SECRET:-development-only-proof-secret-000001}
+      PRIVATEID_ISSUER: ${PRIVATEID_ISSUER:-http://localhost:3001}
+      SITE_URL: ${SITE_URL:-http://localhost:3001}
+      RELATIONSHIP_SITE_URL: ${RELATIONSHIP_SITE_URL:-http://localhost:3002/site/}
+      ASSETTOKEN_SITE_URL: ${ASSETTOKEN_SITE_URL:-http://localhost:3003/site/}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_PROFESSIONAL: ${STRIPE_PRICE_PROFESSIONAL:-}
+      STRIPE_PRICE_BUSINESS: ${STRIPE_PRICE_BUSINESS:-}
+      PRIVATEID_BOOTSTRAP_ADMIN_EMAILS: ${PRIVATEID_BOOTSTRAP_ADMIN_EMAILS:-}
+    ports: ["3001:3001"]
+    healthcheck: { test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"], interval: 10s, timeout: 3s, retries: 10, start_period: 60s }
+    depends_on: { db: { condition: service_healthy } }
+volumes: { privateid-data: {} }

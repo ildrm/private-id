@@ -1,0 +1,80 @@
+import Fastify from 'fastify';
+import helmet from '@fastify/helmet';
+import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
+import rawBody from 'fastify-raw-body';
+import { z } from 'zod';
+import { PrivateIdService } from './domain.js';
+import { BillingService, MemoryBillingStore, UnavailableBillingGateway } from './billing.js';
+const plans = [{ id: 'free', name: 'Free', priceMonthly: 0, currency: 'USD', features: ['Identity wallet', '5 connected apps', 'Core safety controls'], roleLimits: { connections: 5, proofs: 20 } }, { id: 'professional', name: 'Professional', priceMonthly: 1200, currency: 'USD', stripePriceId: process.env.STRIPE_PRICE_PROFESSIONAL, features: ['50 credentials', '100 monthly proofs', 'Priority support'], roleLimits: { connections: 10, proofs: 100 } }, { id: 'business', name: 'Business', priceMonthly: 4900, currency: 'USD', stripePriceId: process.env.STRIPE_PRICE_BUSINESS, features: ['Issuer and verifier workspace', 'Team roles', 'Audit exports'], roleLimits: { teamMembers: 10, proofs: 1000 } }];
+const privateIdCapabilities = (roles) => { const c = new Set(['identity.dashboard', 'credentials.view', 'proofs.manage', 'connected_apps.manage', 'sessions.manage', 'billing.manage']); if (roles.some(r => ['ISSUER_ADMIN', 'IDENTITY_ADMIN'].includes(r)))
+    c.add('credentials.issue'); if (roles.some(r => ['VERIFIER_ADMIN', 'IDENTITY_ADMIN'].includes(r)))
+    c.add('verifiers.manage'); if (roles.some(r => ['IDENTITY_ADMIN', 'SECURITY_ADMIN'].includes(r))) {
+    c.add('trust_registry.manage');
+    c.add('admin.overview');
+    c.add('admin.customers');
+} if (roles.includes('SECURITY_ADMIN'))
+    c.add('audit.view'); return [...c].sort(); };
+const privateIdRoles = ['USER', 'ISSUER_ADMIN', 'VERIFIER_ADMIN', 'IDENTITY_ADMIN', 'SECURITY_ADMIN'];
+const applyBootstrap = (user) => { const emails = (process.env.PRIVATEID_BOOTSTRAP_ADMIN_EMAILS ?? '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean); if (emails.includes(user.email.toLowerCase()))
+    user.roles = [...privateIdRoles]; };
+const errorStatus = (m) => m === 'unauthorized' ? 401 : m === 'forbidden' ? 403 : m.includes('not configured') ? 503 : m.includes('not found') ? 404 : m.includes('already') || m.includes('replay') ? 409 : 400;
+export async function buildApp(service = new PrivateIdService(), billing = new BillingService(plans, new MemoryBillingStore(), new UnavailableBillingGateway(), process.env.SITE_URL ?? 'http://localhost:3001')) {
+    const app = Fastify({ logger: false, requestIdHeader: 'x-request-id' });
+    await app.register(helmet);
+    await app.register(cors, { origin: false });
+    await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+    await app.register(rawBody, { global: false, encoding: false, runFirst: true });
+    app.decorate('privateId', service);
+    app.setErrorHandler((e, _r, reply) => { const message = e instanceof Error ? e.message : 'internal error'; return reply.code(errorStatus(message)).send({ error: message }); });
+    app.addHook('onSend', async () => { await service.flush(); });
+    const auth = async (req) => { const raw = req.headers.authorization; req.principal = service.authenticate(raw?.startsWith('Bearer ') ? raw.slice(7) : undefined); };
+    app.get('/', async (_q, reply) => reply.redirect('/site/'));
+    app.get('/health', async () => ({ status: 'ok' }));
+    app.get('/ready', async () => ({ status: 'ready' }));
+    app.post('/accounts', async (req) => { const v = z.object({ email: z.email(), password: z.string().min(12) }).strict().parse(req.body); const u = await service.register(v); applyBootstrap(u); return { id: u.id, email: u.email }; });
+    app.post('/auth/token', async (req) => { const v = z.object({ email: z.email(), password: z.string() }).parse(req.body), result = await service.login(v.email, v.password), user = service.users.get(result.userId); applyBootstrap(user); return result; });
+    app.get('/auth/capabilities', { preHandler: auth }, async (req) => ({ roles: req.principal.roles, capabilities: privateIdCapabilities(req.principal.roles) }));
+    app.post('/auth/logout', { preHandler: auth }, async (req) => service.logout(req.principal, String(req.headers.authorization).slice(7)));
+    app.delete('/accounts/me', { preHandler: auth }, async (req) => service.deleteAccount(req.principal));
+    app.get('/sessions', { preHandler: auth }, async (req) => [...service.sessions.entries()].filter(([, s]) => s.userId === req.principal.id).map(([id, s]) => ({ id, expiresAt: new Date(s.expiresAt).toISOString() })));
+    app.delete('/sessions/:id', { preHandler: auth }, async (req) => { const id = req.params.id, s = service.sessions.get(id); if (!s || s.userId !== req.principal.id)
+        throw new Error('not found'); service.sessions.delete(id); service.changed(); return { revoked: true }; });
+    app.get('/credentials', { preHandler: auth }, async (req) => [...service.credentials.values()].filter(c => c.userId === req.principal.id));
+    app.post('/credentials', { preHandler: auth }, async (req) => { const v = z.object({ userId: z.uuid(), type: z.string().min(1), claims: z.record(z.string(), z.union([z.string(), z.boolean(), z.number()])), expiresInSeconds: z.number().positive().optional(), assuranceLevel: z.string().optional() }).parse(req.body); return service.issueCredential(req.principal, v.userId, v); });
+    app.post('/credentials/:id/revoke', { preHandler: auth }, async (req) => service.revokeCredential(req.principal, req.params.id));
+    app.post('/proof-requests', { preHandler: auth }, async (req) => { const v = z.object({ clientId: z.string(), requestedClaims: z.array(z.string()).min(1) }).parse(req.body); return service.createProofRequest(req.principal, v.clientId, v.requestedClaims); });
+    app.get('/proof-requests/:id', { preHandler: auth }, async (req) => { const x = service.requests.get(req.params.id); if (!x || x.userId !== req.principal.id)
+        throw new Error('not found'); return x; });
+    app.post('/proof-requests/:id/approve', { preHandler: auth }, async (req) => service.decide(req.principal, req.params.id, true));
+    app.post('/proof-requests/:id/deny', { preHandler: auth }, async (req) => service.decide(req.principal, req.params.id, false));
+    app.post('/proofs/verify', async (req) => { const v = z.object({ proof: z.string(), audience: z.string() }).parse(req.body); return { valid: true, claims: service.verifyProof(v.proof, v.audience) }; });
+    app.post('/federation/proof', { preHandler: auth }, async (req) => { const clientId = z.enum(['relationship-network', 'assettoken']).parse(req.body.clientId), claims = clientId === 'relationship-network' ? ['adult_verified', 'unique_person', 'account_valid'] : ['identity_verified', 'kyc_valid', 'jurisdiction', 'investor_eligible'], request = service.createProofRequest(req.principal, clientId, claims), result = service.decide(req.principal, request.id, true), redirectUrl = clientId === 'relationship-network' ? (process.env.RELATIONSHIP_SITE_URL ?? 'http://localhost:3002/site/') : (process.env.ASSETTOKEN_SITE_URL ?? 'http://localhost:3003/site/'); return { ...result, redirectUrl }; });
+    app.get('/privacy-dashboard', { preHandler: auth }, async (req) => service.privacyDashboard(req.principal));
+    app.delete('/connected-applications/:clientId', { preHandler: auth }, async (req) => service.revokeApplicationAccess(req.principal, req.params.clientId));
+    app.post('/verifier-applications', { preHandler: auth }, async (req) => service.registerApplication(req.principal, z.object({ name: z.string().min(2), clientId: z.string().regex(/^[a-z0-9-]{3,60}$/), redirectUris: z.array(z.url()).min(1), allowedClaims: z.array(z.string()).min(1), webhookUrl: z.url().optional(), environment: z.enum(['SANDBOX', 'PRODUCTION']) }).parse(req.body)));
+    app.get('/verifier-applications', { preHandler: auth }, async (req) => { if (!req.principal.roles.some(r => ['VERIFIER_ADMIN', 'IDENTITY_ADMIN'].includes(r)))
+        throw new Error('forbidden'); return [...service.applications.values()].filter(a => req.principal.roles.includes('IDENTITY_ADMIN') || a.ownerId === req.principal.id).map(({ secretHash, ...a }) => a); });
+    app.post('/trust-registry', { preHandler: auth }, async (req) => service.registerTrustEntry(req.principal, z.object({ issuerName: z.string(), issuerType: z.string(), jurisdiction: z.string().length(2), assuranceLevel: z.string(), supportedCredentials: z.array(z.string()).min(1), status: z.enum(['TRUSTED', 'SUSPENDED', 'REVOKED']), statusEndpoint: z.url().optional() }).parse(req.body)));
+    app.get('/trust-registry', async () => [...service.trustRegistry.values()].filter(e => e.status === 'TRUSTED'));
+    app.get('/billing/plans', async () => billing.listPlans());
+    app.get('/billing/subscription', { preHandler: auth }, async (req) => billing.subscription(req.principal.id));
+    app.post('/billing/checkout', { preHandler: auth }, async (req) => billing.checkout(req.principal.id, req.principal.email, z.object({ planId: z.string() }).parse(req.body).planId));
+    app.post('/billing/portal', { preHandler: auth }, async (req) => billing.portal(req.principal.id));
+    app.post('/webhooks/stripe', { config: { rawBody: true } }, async (req) => billing.handleWebhook(req.rawBody, String(req.headers['stripe-signature'] ?? '')));
+    app.get('/customers/me', { preHandler: auth }, async (req) => ({ id: req.principal.id, email: req.principal.email, roles: req.principal.roles, identityVerified: req.principal.identityVerified, subscription: await billing.subscription(req.principal.id) }));
+    app.get('/admin/overview', { preHandler: auth }, async (req) => { if (!req.principal.roles.some(r => ['IDENTITY_ADMIN', 'SECURITY_ADMIN'].includes(r)))
+        throw new Error('forbidden'); return { customers: service.users.size, credentials: service.credentials.size, proofRequests: service.requests.size, verifierApplications: service.applications.size, trustRegistryEntries: service.trustRegistry.size, billing: await billing.adminSummary() }; });
+    app.get('/admin/customers', { preHandler: auth }, async (req) => { if (!req.principal.roles.some(r => ['IDENTITY_ADMIN', 'SECURITY_ADMIN'].includes(r)))
+        throw new Error('forbidden'); return Promise.all([...service.users.values()].map(async (u) => ({ id: u.id, email: u.email, roles: u.roles, identityVerified: u.identityVerified, accountValid: u.accountValid, subscription: await billing.subscription(u.id) }))); });
+    app.put('/admin/customers/:id/roles', { preHandler: auth }, async (req) => { if (!req.principal.roles.includes('SECURITY_ADMIN'))
+        throw new Error('forbidden'); const user = service.users.get(req.params.id); if (!user)
+        throw new Error('not found'); user.roles = z.array(z.enum(privateIdRoles)).min(1).parse(req.body.roles); service.audit('account.roles_updated', req.principal.id, user.id, { roles: user.roles }); service.changed(); return { id: user.id, roles: user.roles }; });
+    app.put('/admin/customers/:id/assurance', { preHandler: auth }, async (req) => { if (!req.principal.roles.includes('IDENTITY_ADMIN'))
+        throw new Error('forbidden'); const user = service.users.get(req.params.id); if (!user)
+        throw new Error('not found'); const v = z.object({ birthDate: z.iso.date().optional(), country: z.string().length(2).optional(), identityVerified: z.boolean(), uniquePerson: z.boolean(), kycValid: z.boolean(), investorEligible: z.boolean(), accountValid: z.boolean() }).parse(req.body); Object.assign(user, v); service.audit('account.assurance_updated', req.principal.id, user.id); service.changed(); return { id: user.id, identityVerified: user.identityVerified, uniquePerson: user.uniquePerson, kycValid: user.kycValid, investorEligible: user.investorEligible, accountValid: user.accountValid }; });
+    app.get('/audit', { preHandler: auth }, async (req) => { if (!req.principal.roles.includes('SECURITY_ADMIN'))
+        throw new Error('forbidden'); return service.audits; });
+    app.get('/openapi.json', async () => ({ openapi: '3.1.0', info: { title: 'PrivateID API', version: '1.0.0' }, paths: { '/accounts': { post: {} }, '/accounts/me': { delete: {} }, '/auth/token': { post: {} }, '/auth/capabilities': { get: {} }, '/auth/logout': { post: {} }, '/sessions': { get: {} }, '/sessions/{id}': { delete: {} }, '/credentials': { get: {}, post: {} }, '/credentials/{id}/revoke': { post: {} }, '/proof-requests': { post: {} }, '/proof-requests/{id}': { get: {} }, '/proof-requests/{id}/approve': { post: {} }, '/proof-requests/{id}/deny': { post: {} }, '/proofs/verify': { post: {} }, '/federation/proof': { post: {} }, '/privacy-dashboard': { get: {} }, '/connected-applications/{clientId}': { delete: {} }, '/verifier-applications': { get: {}, post: {} }, '/trust-registry': { get: {}, post: {} }, '/customers/me': { get: {} }, '/billing/plans': { get: {} }, '/billing/subscription': { get: {} }, '/billing/checkout': { post: {} }, '/billing/portal': { post: {} }, '/webhooks/stripe': { post: {} }, '/admin/overview': { get: {} }, '/admin/customers': { get: {} }, '/admin/customers/{id}/roles': { put: {} }, '/admin/customers/{id}/assurance': { put: {} }, '/audit': { get: {} } } }));
+    return app;
+}

@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { BillingService, MemoryBillingStore } from '../src/billing.js';
+class Gateway {
+    customers = 0;
+    async createCustomer(accountId) { this.customers++; return `cus_${accountId}`; }
+    async createCheckout(customerId, plan) { return { id: 'cs_test', url: `https://checkout.stripe.test/${customerId}/${plan.id}` }; }
+    async createPortal(customerId) { return { url: `https://portal.stripe.test/${customerId}` }; }
+    parseWebhook(raw, signature) { if (signature !== 'valid')
+        throw new Error('invalid webhook signature'); return JSON.parse(raw.toString()); }
+}
+const plan = { id: 'pro', name: 'Professional', priceMonthly: 1200, currency: 'USD', stripePriceId: 'price_test', features: ['Feature'], roleLimits: { users: 5 } };
+test('checkout creates one customer and portal reuses it', async () => { const store = new MemoryBillingStore(), gateway = new Gateway(), billing = new BillingService([plan], store, gateway, 'https://site.test'); assert.equal('stripePriceId' in billing.listPlans()[0], false); const first = await billing.checkout('00000000-0000-4000-8000-000000000001', 'customer@example.test', 'pro'); await billing.checkout('00000000-0000-4000-8000-000000000001', 'customer@example.test', 'pro'); assert.match(first.url, /checkout/); assert.equal(gateway.customers, 1); assert.match((await billing.portal('00000000-0000-4000-8000-000000000001')).url, /portal/); });
+test('signed webhook updates subscription and payment exactly once', async () => { const store = new MemoryBillingStore(), gateway = new Gateway(), billing = new BillingService([plan], store, gateway, 'https://site.test'); await billing.checkout('00000000-0000-4000-8000-000000000002', undefined, 'pro'); const subscription = { id: 'evt_sub', type: 'customer.subscription.updated', data: { object: { id: 'sub_1', customer: 'cus_00000000-0000-4000-8000-000000000002', status: 'active', current_period_end: 1900000000, cancel_at_period_end: false, metadata: { planId: 'pro' } } } }; await billing.handleWebhook(Buffer.from(JSON.stringify(subscription)), 'valid'); assert.equal((await billing.subscription('00000000-0000-4000-8000-000000000002')).status, 'active'); assert.deepEqual(await billing.handleWebhook(Buffer.from(JSON.stringify(subscription)), 'valid'), { duplicate: true }); const invoice = { id: 'evt_invoice', type: 'invoice.paid', data: { object: { id: 'in_1', customer: 'cus_00000000-0000-4000-8000-000000000002', payment_intent: 'pi_1', amount_paid: 1200, currency: 'usd' } } }; await billing.handleWebhook(Buffer.from(JSON.stringify(invoice)), 'valid'); assert.equal((await billing.adminSummary()).revenue, 1200); await assert.rejects(() => billing.handleWebhook(Buffer.from('{}'), 'bad'), /signature/); });
