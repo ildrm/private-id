@@ -1,0 +1,194 @@
+{
+  "generatedAt": "2026-09-07T05:12:39.635Z",
+  "probes": 24,
+  "confirmed": 24,
+  "observations": [
+    {
+      "probe": "S01 bootstrap grants administrator roles without email ownership",
+      "result": "CONFIRMED",
+      "detail": {
+        "roles": [
+          "USER",
+          "ISSUER_ADMIN",
+          "VERIFIER_ADMIN",
+          "IDENTITY_ADMIN",
+          "SECURITY_ADMIN"
+        ],
+        "emailVerifiedWithoutChallenge": true
+      }
+    },
+    {
+      "probe": "S02 suspension leaves an existing bearer session authorized",
+      "result": "CONFIRMED",
+      "detail": {
+        "accountValid": false,
+        "authenticatedStatus": 200
+      }
+    },
+    {
+      "probe": "S03 approved proof survives access revocation",
+      "result": "CONFIRMED",
+      "detail": {
+        "verificationAfterRevocation": true
+      }
+    },
+    {
+      "probe": "S03 approved proof survives delete revocation",
+      "result": "CONFIRMED",
+      "detail": {
+        "verificationAfterRevocation": true
+      }
+    },
+    {
+      "probe": "S03 approved proof survives credential revocation",
+      "result": "CONFIRMED",
+      "detail": {
+        "verificationAfterRevocation": true
+      }
+    },
+    {
+      "probe": "S04 session listing discloses other usable bearer tokens",
+      "result": "CONFIRMED",
+      "detail": {
+        "listsSecondSessionBearer": true
+      }
+    },
+    {
+      "probe": "D01 concurrent registrations bypass email uniqueness",
+      "result": "CONFIRMED",
+      "detail": {
+        "accountsForSameEmail": 2
+      }
+    },
+    {
+      "probe": "D02 a failed state save permanently poisons the save queue",
+      "result": "CONFIRMED",
+      "detail": {
+        "saveAttemptsDespiteTwoMutations": 1,
+        "uncommittedUsersStillInMemory": 2
+      }
+    },
+    {
+      "probe": "D03 mutable snapshot includes changes made after snapshot creation",
+      "result": "CONFIRMED",
+      "detail": {
+        "unscheduledRoleMutationPersisted": true
+      }
+    },
+    {
+      "probe": "I01 claims can overwrite the signed proof expiration",
+      "result": "CONFIRMED",
+      "detail": {
+        "issuedExpiration": "2100-01-01",
+        "requiresPrivilegedIssuerAndVerifierConfiguration": true
+      }
+    },
+    {
+      "probe": "I02 earliest credential wins over a newer conflicting credential",
+      "result": "CONFIRMED",
+      "detail": {
+        "earlierLowAssuranceValueSelected": true
+      }
+    },
+    {
+      "probe": "I03 credential revocation falls back to an unexpired account boolean",
+      "result": "CONFIRMED",
+      "detail": {
+        "kycTrueAfterSourceRevocation": true
+      }
+    },
+    {
+      "probe": "I04 configured proof-provider issuer is not used when signing",
+      "result": "CONFIRMED",
+      "detail": {
+        "ownProofRejectedByConfiguredProvider": true
+      }
+    },
+    {
+      "probe": "I05 request can still be approved after verifier suspension",
+      "result": "CONFIRMED",
+      "detail": {
+        "proofIssuedAndVerifiedAfterSuspension": true,
+        "suspensionViaDomainState": true
+      }
+    },
+    {
+      "probe": "P01 free-plan proof allowance is not enforced",
+      "result": "CONFIRMED",
+      "detail": {
+        "approvedProofs": 21,
+        "documentedFreeAllowance": 20
+      }
+    },
+    {
+      "probe": "A01 rate-limit exception is rewritten from 429 to 400",
+      "result": "CONFIRMED",
+      "detail": {
+        "statusAtLimit": 400
+      }
+    },
+    {
+      "probe": "A02 missing federation body exposes a TypeError message",
+      "result": "CONFIRMED",
+      "detail": {
+        "status": 400,
+        "error": "Cannot read properties of undefined (reading 'clientId')"
+      }
+    },
+    {
+      "probe": "B01 failed webhook is permanently acknowledged as duplicate on retry",
+      "result": "CONFIRMED",
+      "detail": {
+        "retry": {
+          "duplicate": true
+        },
+        "subscriptionsPersisted": 0
+      }
+    },
+    {
+      "probe": "B02 event received before customer mapping is silently lost",
+      "result": "CONFIRMED",
+      "detail": {
+        "laterRetryIgnored": true
+      }
+    },
+    {
+      "probe": "B03 older subscription event overwrites a newer cancellation",
+      "result": "CONFIRMED",
+      "detail": {
+        "finalStatus": "active"
+      }
+    },
+    {
+      "probe": "B04 concurrent checkouts create duplicate Stripe customers",
+      "result": "CONFIRMED",
+      "detail": {
+        "providerCustomersCreated": 2,
+        "storedMappings": 1
+      }
+    },
+    {
+      "probe": "B05 current subscription-item period is silently dropped",
+      "result": "CONFIRMED",
+      "detail": {
+        "itemPeriodIgnored": true
+      }
+    },
+    {
+      "probe": "B06 subscription plan stays paid when status is canceled",
+      "result": "CONFIRMED",
+      "detail": {
+        "planId": "professional",
+        "status": "canceled",
+        "effectiveEntitlementNotCalculated": true
+      }
+    },
+    {
+      "probe": "B07 currency totals are added without currency separation",
+      "result": "CONFIRMED",
+      "detail": {
+        "mixedCurrencyRevenue": 200
+      }
+    }
+  ]
+}

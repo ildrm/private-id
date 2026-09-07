@@ -1,0 +1,19 @@
+{
+  "renderProbe": {
+    "scenario": "Sessions data retained during navigation to Billing",
+    "componentRenderThrows": "TypeError: Cannot read properties of undefined (reading 'map')",
+    "browserE2E": false
+  },
+  "developmentProxy": {
+    "missingRequiredPaths": [
+      "/customers/me",
+      "/credentials",
+      "/proof-requests",
+      "/sessions",
+      "/privacy-dashboard",
+      "/verifier-applications",
+      "/trust-registry",
+      "/federation/proof"
+    ]
+  }
+}

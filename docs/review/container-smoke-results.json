@@ -1,0 +1,11 @@
+{
+  "node": "v22.23.2",
+  "uid": 1000,
+  "rootRedirect": 302,
+  "health": 200,
+  "site": 200,
+  "assetsLoaded": 2,
+  "syntheticRegistration": 200,
+  "persistenceAdapter": "memory",
+  "productionDatabaseEntrypoint": false
+}

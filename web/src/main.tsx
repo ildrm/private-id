@@ -1,40 +1,241 @@
-import React,{FormEvent,useEffect,useMemo,useState}from'react';
-import{createRoot}from'react-dom/client';
-import'./styles.css';
-
-type Session={id:string;email:string;roles:string[];subscription:{planId:string;status:string};capabilities:string[]};
-type Plan={id:string;name:string;priceMonthly:number;features:string[]};
-const TOKEN='privateid_token';
-const customerNav=['Overview','Credentials','Proof requests','Connected apps','Sessions','Billing'];
-const roleNav=[
-  {label:'Issue credentials',cap:'credentials.issue'},
-  {label:'Verifier applications',cap:'verifiers.manage'},
-  {label:'Trust registry',cap:'trust_registry.manage'},
-  {label:'Customers',cap:'admin.customers'},
-  {label:'Audit',cap:'audit.view'}
-];
-
-async function json(url:string,token?:string,init:RequestInit={}){const response=await fetch(url,{...init,headers:{...(init.body?{'content-type':'application/json'}:{}),...(token?{authorization:`Bearer ${token}`}:{})}});const data=await response.json().catch(()=>({error:'Request failed'}));if(!response.ok)throw new Error(data.error??'Request failed');return data}
-
-function AuthScreen({onAuthenticated}:{onAuthenticated:(token:string)=>Promise<void>}){const[register,setRegister]=useState(false),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{if(register)await json('/accounts',undefined,{method:'POST',body:JSON.stringify({email,password})});const result=await json('/auth/token',undefined,{method:'POST',body:JSON.stringify({email,password})});await onAuthenticated(result.accessToken)}catch(e){setError(e instanceof Error?e.message:'Authentication failed')}finally{setBusy(false)}}return <div className="auth-page"><section className="auth-story"><div className="brand"><span className="mark">P</span>PrivateID</div><h1>Your identity, shared on your terms.</h1><p>Sign in to manage credentials and proof requests. Administrative tools appear only when your account has the corresponding server-assigned role.</p><ul><li>Audience-bound selective disclosure</li><li>Revocable sessions and connected access</li><li>Role-separated issuer, verifier, identity, and security operations</li></ul></section><main className="auth-card"><form onSubmit={submit}><h2>{register?'Create a PrivateID account':'Sign in to PrivateID'}</h2><p>{register?'Public registration creates a customer account. Privileged roles cannot be self-assigned.':'Enter your PrivateID account credentials.'}</p><label>Email<input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete={register?'new-password':'current-password'} minLength={register?12:1} value={password} onChange={e=>setPassword(e.target.value)} required/></label>{error&&<p className="auth-error" role="alert">{error}</p>}<button className="primary" disabled={busy}>{busy?'Please wait…':register?'Create account':'Sign in'}</button><button type="button" className="link-button" onClick={()=>{setRegister(!register);setError('')}}>{register?'Already registered? Sign in':'New to PrivateID? Create an account'}</button></form></main></div>}
-
-function App(){const[session,setSession]=useState<Session>(),[loading,setLoading]=useState(true),[section,setSection]=useState('Overview');const token=localStorage.getItem(TOKEN)??'';async function authenticate(nextToken:string){localStorage.setItem(TOKEN,nextToken);const[me,access]=await Promise.all([json('/customers/me',nextToken),json('/auth/capabilities',nextToken)]);setSession({...me,capabilities:access.capabilities});setLoading(false)}useEffect(()=>{if(!token){setLoading(false);return}authenticate(token).catch(()=>{localStorage.removeItem(TOKEN);setLoading(false)})},[]);async function logout(){try{await json('/auth/logout',token,{method:'POST'})}catch{}localStorage.removeItem(TOKEN);setSession(undefined);setSection('Overview')}if(loading)return <div className="auth-loading">Checking your secure session…</div>;if(!session)return <AuthScreen onAuthenticated={authenticate}/>;const client=new URLSearchParams(location.search).get('client');if(client==='relationship-network'||client==='assettoken')return <FederationConsent clientId={client} token={token}/>;const allowedRoleNav=roleNav.filter(n=>session.capabilities.includes(n.cap));return <div className="shell"><aside><div className="brand"><span className="mark">P</span>PrivateID</div><p className="group-label">Customer workspace</p>{customerNav.map(x=><button className={section===x?'nav active':'nav'} onClick={()=>setSection(x)} key={x}>{x}</button>)}{allowedRoleNav.length>0&&<><p className="group-label admin-label">Role workspaces</p>{allowedRoleNav.map(x=><button className={section===x.label?'nav active':'nav'} onClick={()=>setSection(x.label)} key={x.label}>{x.label}</button>)}</>}<div className="plan-mini"><strong>{session.subscription.planId}</strong><span>{session.roles.join(' · ')}</span><button onClick={logout}>Sign out</button></div></aside><main><header><div className="role-badges">{session.roles.map(r=><span key={r}>{r.replaceAll('_',' ')}</span>)}</div><div className="account"><span>{session.email[0].toUpperCase()}</span><div><strong>{session.email}</strong><small>Authenticated</small></div></div></header>{customerNav.includes(section)?<CustomerSection section={section} session={session} token={token}/>:<RoleSection section={section} token={token}/>}</main></div>}
-
-function FederationConsent({clientId,token}:{clientId:'relationship-network'|'assettoken';token:string}){const[error,setError]=useState(''),claims=clientId==='relationship-network'?['Adult status','Unique person','Account valid']:['Identity verified','KYC valid','Jurisdiction','Investor eligibility'];async function approve(){try{const r=await json('/federation/proof',token,{method:'POST',body:JSON.stringify({clientId})});location.href=`${r.redirectUrl}#proof=${encodeURIComponent(r.proof)}`}catch(e){setError((e as Error).message)}}return <div className="auth-page"><section className="auth-story"><div className="brand"><span className="mark">P</span>PrivateID</div><h1>Review this disclosure.</h1><p>{clientId} is requesting a minimal, audience-bound proof. No password or full identity record will be shared.</p></section><main className="auth-card"><section className="consent-card"><h2>Continue to {clientId}</h2><p>Requested claims:</p><ul>{claims.map(c=><li key={c}>{c}</li>)}</ul>{error&&<p className="auth-error">{error}</p>}<button className="primary" onClick={approve}>Approve and continue</button><button className="link-button" onClick={()=>location.href='/site/'}>Cancel</button></section></main></div>}
-
-function CustomerSection({section,session,token}:{section:string;session:Session;token:string}){const[data,setData]=useState<any>(),[error,setError]=useState('');useEffect(()=>{setError('');const endpoint=section==='Credentials'?'/credentials':section==='Connected apps'||section==='Overview'?'/privacy-dashboard':section==='Sessions'?'/sessions':section==='Billing'?'/billing/plans':undefined;if(!endpoint){setData(undefined);return}json(endpoint,token).then(setData).catch(e=>setError(e.message))},[section,token]);if(section==='Proof requests')return <ProofTool token={token}/>;if(section==='Billing')return <Billing plans={Array.isArray(data)?data:[]} token={token}/>;return <div className="content"><h1>{section==='Overview'?'Welcome to your PrivateID workspace':section}</h1><p className="lead">Signed in as {session.email}. Access is derived from {session.roles.join(', ')}.</p>{error&&<p className="notice">{error}</p>}{section==='Overview'&&<div className="stats"><article><span>Plan</span><strong>{session.subscription.planId}</strong></article><article><span>Roles</span><strong>{session.roles.length}</strong></article><article><span>Connected apps</span><strong>{data?.connectedApplications?.length??0}</strong></article><article><span>Disclosures</span><strong>{data?.disclosures?.length??0}</strong></article></div>}{section==='Credentials'&&<DataTable rows={data??[]} columns={['type','issuer','assuranceLevel','expiresAt']}/>} {section==='Connected apps'&&<DataTable rows={data?.connectedApplications??[]} columns={['clientId','lastSharedAt','revokedAt']}/>} {section==='Sessions'&&<DataTable rows={data??[]} columns={['id','expiresAt']}/>}</div>}
-
-function ProofTool({token}:{token:string}){const[clientId,setClientId]=useState('relationship-network'),[claims,setClaims]=useState('adult_verified,unique_person'),[result,setResult]=useState<any>(),[error,setError]=useState('');async function create(e:FormEvent){e.preventDefault();try{setResult(await json('/proof-requests',token,{method:'POST',body:JSON.stringify({clientId,requestedClaims:claims.split(',').map(x=>x.trim()).filter(Boolean)})}));setError('')}catch(e){setError((e as Error).message)}}async function decide(approve:boolean){try{setResult(await json(`/proof-requests/${result.id}/${approve?'approve':'deny'}`,token,{method:'POST'}))}catch(e){setError((e as Error).message)}}return <div className="content"><h1>Proof requests</h1><p className="lead">Create and explicitly approve a minimal disclosure request.</p><form className="tool-form panel" onSubmit={create}><label>Relying-party client<input value={clientId} onChange={e=>setClientId(e.target.value)}/></label><label>Requested claims<input value={claims} onChange={e=>setClaims(e.target.value)}/></label><button className="primary">Create request</button></form>{error&&<p className="notice">{error}</p>}{result&&<section className="panel result-panel"><pre>{JSON.stringify(result,null,2)}</pre>{result.status==='PENDING'&&<div><button className="primary" onClick={()=>decide(true)}>Approve</button><button onClick={()=>decide(false)}>Deny</button></div>}</section>}</div>}
-
-function Billing({plans,token}:{plans:Plan[];token:string}){const[message,setMessage]=useState('');async function checkout(planId:string){try{const r=await json('/billing/checkout',token,{method:'POST',body:JSON.stringify({planId})});location.href=r.url}catch(e){setMessage((e as Error).message)}}return <div className="content"><h1>Plans and billing</h1><p className="lead">Checkout is hosted by Stripe and subscription changes are confirmed by signed webhooks.</p><div className="plans">{plans.map(p=><article key={p.id}><h3>{p.name}</h3><strong>{p.priceMonthly?`$${p.priceMonthly/100} / month`:'Free'}</strong><ul>{p.features.map(f=><li key={f}>{f}</li>)}</ul><button disabled={!p.priceMonthly} onClick={()=>checkout(p.id)}>{p.priceMonthly?'Continue to Stripe':'Included'}</button></article>)}</div>{message&&<p className="notice">{message}</p>}</div>}
-
-function RoleSection({section,token}:{section:string;token:string}){if(section==='Customers')return <AdminCustomers token={token}/>;if(section==='Audit')return <RemoteList title="Security audit" endpoint="/audit" token={token}/>;if(section==='Verifier applications')return <VerifierTool token={token}/>;if(section==='Trust registry')return <TrustTool token={token}/>;return <IssuerTool token={token}/>}
-function IssuerTool({token}:{token:string}){const[userId,setUserId]=useState(''),[type,setType]=useState('VerifiedCredential'),[message,setMessage]=useState('');async function submit(e:FormEvent){e.preventDefault();try{const r=await json('/credentials',token,{method:'POST',body:JSON.stringify({userId,type,claims:{verified:true},assuranceLevel:'substantial'})});setMessage(`Credential ${r.id} issued.`)}catch(e){setMessage((e as Error).message)}}return <Tool title="Issue credentials" description="Available only to issuer and identity administrators."><form onSubmit={submit}><label>Customer UUID<input value={userId} onChange={e=>setUserId(e.target.value)} required/></label><label>Credential type<input value={type} onChange={e=>setType(e.target.value)} required/></label><button className="primary">Issue credential</button></form><p>{message}</p></Tool>}
-function VerifierTool({token}:{token:string}){const[name,setName]=useState(''),[clientId,setClientId]=useState(''),[message,setMessage]=useState('');async function submit(e:FormEvent){e.preventDefault();try{const r=await json('/verifier-applications',token,{method:'POST',body:JSON.stringify({name,clientId,redirectUris:[`https://${clientId}.example/callback`],allowedClaims:['account_valid'],environment:'SANDBOX'})});setMessage(`Created. Copy the client secret now: ${r.clientSecret}`)}catch(e){setMessage((e as Error).message)}}return <Tool title="Verifier applications" description="Available only to verifier and identity administrators."><form onSubmit={submit}><label>Application name<input value={name} onChange={e=>setName(e.target.value)} required/></label><label>Client ID<input value={clientId} onChange={e=>setClientId(e.target.value)} required/></label><button className="primary">Register verifier</button></form><p>{message}</p></Tool>}
-function TrustTool({token}:{token:string}){const[name,setName]=useState(''),[message,setMessage]=useState('');async function submit(e:FormEvent){e.preventDefault();try{const r=await json('/trust-registry',token,{method:'POST',body:JSON.stringify({issuerName:name,issuerType:'ORGANIZATION',jurisdiction:'DE',assuranceLevel:'SUBSTANTIAL',supportedCredentials:['VerifiedCredential'],status:'TRUSTED'})});setMessage(`Trusted issuer ${r.issuerName} added.`)}catch(e){setMessage((e as Error).message)}}return <Tool title="Trust registry" description="Available only to identity and security administrators."><form onSubmit={submit}><label>Issuer name<input value={name} onChange={e=>setName(e.target.value)} required/></label><button className="primary">Add trusted issuer</button></form><p>{message}</p></Tool>}
-function AdminCustomers({token}:{token:string}){const[rows,setRows]=useState<any[]>([]),[error,setError]=useState('');useEffect(()=>{json('/admin/customers',token).then(setRows).catch(e=>setError(e.message))},[token]);return <div className="content"><h1>Customers</h1>{error?<p className="notice">{error}</p>:<DataTable rows={rows} columns={['email','roles','identityVerified','accountValid']}/>}</div>}
-function RemoteList({title,endpoint,token}:{title:string;endpoint:string;token:string}){const[rows,setRows]=useState<any[]>([]),[error,setError]=useState('');useEffect(()=>{json(endpoint,token).then(setRows).catch(e=>setError(e.message))},[endpoint,token]);return <div className="content"><h1>{title}</h1>{error?<p className="notice">{error}</p>:<DataTable rows={rows} columns={['at','action','actorId','targetId']}/>}</div>}
-function Tool({title,description,children}:{title:string;description:string;children:React.ReactNode}){return <div className="content"><h1>{title}</h1><p className="lead">{description}</p><section className="panel role-tool">{children}</section></div>}
-function DataTable({rows,columns}:{rows:any[];columns:string[]}){return <section className="panel"><table><thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{columns.map(c=><td key={c}>{Array.isArray(r[c])?r[c].join(', '):String(r[c]??'—')}</td>)}</tr>):<tr><td colSpan={columns.length}>No records yet.</td></tr>}</tbody></table></section>}
-
-createRoot(document.getElementById('root')!).render(<App/>);
+import { StrictMode, useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { api, type User } from "./api";
+import { Authentication, EmailVerification, Security } from "./account";
+import { Overview, Credentials, Connections, Proofs, Billing } from "./wallet";
+import { Issuers, Verifiers, Organizations } from "./workspaces";
+import { Customers, AuditLog, BillingOperations, Operations } from "./admin";
+import "./styles.css";
+const initialFragment = new URLSearchParams(window.location.hash.slice(1));
+const initialChallenge = {
+  resetToken: initialFragment.get("reset") ?? undefined,
+  verifyToken: initialFragment.get("verify") ?? undefined,
+};
+if (initialFragment.has("verify") || initialFragment.has("reset"))
+  history.replaceState(
+    null,
+    "",
+    window.location.pathname + window.location.search,
+  );
+const authorization = new URLSearchParams(window.location.search);
+function App() {
+  const [challenge, setChallenge] = useState(initialChallenge),
+    { resetToken, verifyToken } = challenge;
+  const [user, setUser] = useState<User>(),
+    [loading, setLoading] = useState(true),
+    [message, setMessage] = useState(""),
+    [error, setError] = useState(""),
+    [tab, setTab] = useState(
+      authorization.has("client_id") ? "proofs" : "overview",
+    ),
+    [mode, setMode] = useState(""),
+    main = useRef<HTMLElement>(null);
+  const previousTab = useRef(tab);
+  const signedOut = () => {
+    setUser(undefined);
+    setTab("overview");
+  };
+  const reloadUser = () => {
+    api<User>("/auth/me")
+      .then(setUser)
+      .catch(() => signedOut());
+  };
+  useEffect(() => {
+    let mounted = true;
+    api<{ mode: string }>("/configuration")
+      .then((x) => {
+        if (mounted) setMode(x.mode);
+      })
+      .catch(() => {});
+    api<User>("/auth/me")
+      .then((value) => {
+        if (mounted && !resetToken) setUser(value);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    const readChallenge = () => {
+      const fragment = new URLSearchParams(location.hash.slice(1));
+      if (!fragment.has("verify") && !fragment.has("reset")) return;
+      const next = {
+        resetToken: fragment.get("reset") ?? undefined,
+        verifyToken: fragment.get("verify") ?? undefined,
+      };
+      history.replaceState(null, "", location.pathname + location.search);
+      setChallenge(next);
+      setMessage("");
+      setError("");
+      if (next.resetToken) setUser(undefined);
+    };
+    window.addEventListener("hashchange", readChallenge);
+    window.addEventListener("privateid:expired", signedOut);
+    return () => {
+      mounted = false;
+      window.removeEventListener("privateid:expired", signedOut);
+      window.removeEventListener("hashchange", readChallenge);
+    };
+  }, []);
+  useEffect(() => {
+    if (previousTab.current !== tab) main.current?.focus();
+    previousTab.current = tab;
+    document.title = `${tab === "overview" ? "Wallet" : tab.charAt(0).toUpperCase() + tab.slice(1)} · PrivateID`;
+  }, [tab]);
+  const tabs = [
+    ["overview", "Overview"],
+    ["credentials", "Credentials"],
+    ["proofs", "Proofs & consent"],
+    ["connections", "Connected apps"],
+    ["security", "Security"],
+    ["billing", "Billing"],
+    ["issuers", "Issuer workspace"],
+    ["verifiers", "Verifier workspace"],
+    ["organizations", "Organization"],
+  ];
+  if (user?.roles.some((r) => ["IDENTITY_ADMIN", "SECURITY_ADMIN"].includes(r)))
+    tabs.push(["operations", "Operations"], ["customers", "Accounts"]);
+  if (user?.roles.includes("SECURITY_ADMIN"))
+    tabs.push(["audit", "Audit"], ["events", "Billing events"]);
+  return (
+    <>
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <header>
+        <a href="/site/" className="brand">
+          <span aria-hidden="true">◈</span> PrivateID
+        </a>
+        <span className="brand-note">Identity with consent</span>
+        {user && (
+          <div className="account-menu">
+            <span>{user.email}</span>
+            <button
+              onClick={async () => {
+                try {
+                  await api("/auth/logout", "POST", {});
+                  signedOut();
+                } catch (error) {
+                  setError(
+                    error instanceof Error ? error.message : "Sign out failed",
+                  );
+                }
+              }}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
+      </header>
+      {mode && mode !== "production" && (
+        <div className="environment">
+          Development environment · synthetic credentials have no real-world
+          assurance.
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
+      <div className={user && user.emailVerified ? "layout" : "entry-layout"}>
+        {user?.emailVerified && (
+          <aside>
+            <nav aria-label="Workspace">
+              {tabs.map(([id, title]) => (
+                <button
+                  key={id}
+                  aria-current={tab === id ? "page" : undefined}
+                  onClick={() => setTab(id)}
+                >
+                  {title}
+                </button>
+              ))}
+            </nav>
+            <div className="account-id">
+              <small>Your account ID</small>
+              <p>{user.id}</p>
+            </div>
+          </aside>
+        )}
+        <main id="main" ref={main} tabIndex={-1}>
+          {verifyToken && !message && (
+            <section className="panel">
+              <h1>Confirm email ownership</h1>
+              <p>
+                Complete verification for the account that requested this link.
+              </p>
+              <button
+                onClick={async () => {
+                  try {
+                    await api("/auth/verify-email", "POST", {
+                      token: verifyToken,
+                    });
+                    setMessage("Email verified. You can sign in now.");
+                    reloadUser();
+                  } catch (error) {
+                    setError(
+                      error instanceof Error
+                        ? error.message
+                        : "Verification failed",
+                    );
+                  }
+                }}
+              >
+                Verify email address
+              </button>
+            </section>
+          )}
+          {loading ? (
+            <p role="status">Loading your account…</p>
+          ) : !user ? (
+            <Authentication
+              key={resetToken ?? "login"}
+              onLogin={setUser}
+              resetToken={resetToken}
+              verifiedMessage={message}
+            />
+          ) : !user.emailVerified ? (
+            <EmailVerification user={user} reload={reloadUser} />
+          ) : (
+            <div key={tab}>
+              {tab === "overview" && <Overview />}
+              {tab === "credentials" && <Credentials />}
+              {tab === "proofs" && (
+                <Proofs
+                  authorization={
+                    authorization.has("client_id") ? authorization : undefined
+                  }
+                />
+              )}
+              {tab === "connections" && <Connections />}
+              {tab === "security" && (
+                <Security
+                  user={user}
+                  reloadUser={reloadUser}
+                  signedOut={signedOut}
+                />
+              )}
+              {tab === "billing" && <Billing />}
+              {tab === "issuers" && <Issuers user={user} />}
+              {tab === "verifiers" && <Verifiers user={user} />}
+              {tab === "organizations" && <Organizations />}
+              {tab === "operations" && <Operations />}
+              {tab === "customers" && <Customers user={user} />}
+              {tab === "audit" && <AuditLog />}
+              {tab === "events" && <BillingOperations />}
+            </div>
+          )}
+        </main>
+      </div>
+      <footer>
+        <span>PrivateID · Share only what is needed.</span>
+        <a href="/openapi.json">API reference</a>
+      </footer>
+    </>
+  );
+}
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

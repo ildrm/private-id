@@ -1,0 +1,34 @@
+{
+  "migrations": {
+    "applied": 4,
+    "secondRunSucceeded": true
+  },
+  "hydration": {
+    "authenticatedAfterHydration": true
+  },
+  "storageSplit": {
+    "normalizedUsers": 0,
+    "runtimeUsers": 1
+  },
+  "twoInstances": {
+    "sameProofAcceptedTwice": true,
+    "deploymentDocsProhibitMultipleReplicas": true
+  },
+  "paymentUpsert": {
+    "amount": "0",
+    "status": "paid"
+  },
+  "invalidRealSignatureRejected": true,
+  "webhookFailure": {
+    "initialDatabaseFailureStatus": 400,
+    "retryResponse": {
+      "duplicate": true
+    },
+    "subscriptionsPersisted": 0,
+    "actualStripeSignatureAndRawBodyVerified": true
+  },
+  "twoWriters": {
+    "earlierCommittedAccountLost": true,
+    "deploymentDocsProhibitMultipleReplicas": true
+  }
+}

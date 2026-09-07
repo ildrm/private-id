@@ -1,0 +1,81 @@
+{
+  "date": "2026-09-07",
+  "version": "0.2.0",
+  "reviewed_baseline": "128c25c",
+  "typecheck": {
+    "passed": true,
+    "backend": true,
+    "frontend": true,
+    "tests": true,
+    "no_unused_symbols": true
+  },
+  "build": {
+    "api": true,
+    "web": true,
+    "clean_docker_build": true,
+    "container_node": "22.23.2",
+    "local_node": "26.5.0",
+    "base_image_digest": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+    "final_image_manifest": "sha256:67471bf1304ae89bb284bae9247cc5215865dd27236b46f7db655491c1559dbc"
+  },
+  "automated_tests": {
+    "passed": 42,
+    "failed": 0,
+    "skipped": 0,
+    "postgres_enabled": true,
+    "includes_legacy_cutover": true
+  },
+  "browser_tests": {
+    "passed": 3,
+    "failed": 0,
+    "browser": "installed Chrome via Playwright",
+    "temporary_profile": true,
+    "postgres_enabled": true
+  },
+  "postgres_permissions": {
+    "runtime_audit_delete_denied": true,
+    "runtime_retention_denied": true,
+    "retention_account_mutation_denied": true,
+    "restricted_startup_accepted": true,
+    "privileged_startup_rejected": true
+  },
+  "container_smoke": {
+    "passed": true,
+    "uid": 1000,
+    "database_readiness": true,
+    "static_site": true,
+    "openapi_paths": 60,
+    "persisted_seed_login": true,
+    "exact_value_consent": true,
+    "one_time_redemption": true,
+    "seed_idempotence": true
+  },
+  "dependencies": {
+    "audit_vulnerabilities": 0,
+    "tracked_dependency_files": 0,
+    "tracked_build_outputs": 0
+  },
+  "format_check": true,
+  "git_diff_check": true,
+  "documentation": {
+    "current_documents_checked": 15,
+    "broken_local_links": 0
+  },
+  "environmental_fallbacks": [
+    "Chromium download returned regional access 403; browser tests passed with installed Chrome.",
+    "Intermittent Docker tag lookups timed out; the verified base image was pinned by digest and the final build succeeded from the cached verified base."
+  ],
+  "not_executed": [
+    "Live Stripe payments or actual production webhook delivery",
+    "Real-user SMTP messages",
+    "Deployed HTTPS/PostgreSQL TLS validation",
+    "Manual screen-reader and penetration review",
+    "Production-scale load test",
+    "Operator backup/restore and data-key re-encryption drill"
+  ],
+  "cleanup": {
+    "temporary_compose_stack_removed": true,
+    "isolated_postgres_stopped": true,
+    "generated_test_credentials_removed": true
+  }
+}

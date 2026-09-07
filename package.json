@@ -1,8 +1,57 @@
 {
   "name": "privateid",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "scripts": { "dev": "tsx watch src/server.ts", "dev:web": "vite", "build:api": "tsc -p tsconfig.json", "build:web": "vite build", "build": "npm run build:api && npm run build:web", "start": "node dist/src/server.js", "test": "node --import tsx --test tests/*.test.ts", "check": "npm run build && npm test", "seed": "node --import tsx src/seed.ts", "migrate": "node --import tsx -e \"import('./src/database.ts').then(async m=>{const p=m.createPool();await m.migrate(p);await p.end()})\"" },
-  "dependencies": { "@fastify/cors": "^11.1.0", "@fastify/helmet": "^13.0.2", "@fastify/rate-limit": "^10.3.0", "@fastify/static": "^10.1.3", "fastify": "^5.6.2", "fastify-raw-body": "^6.0.1", "pg": "^8.16.3", "stripe": "^22.5.0", "zod": "^4.1.12" },
-  "devDependencies": { "@types/node": "^24.10.0", "@types/pg": "^8.15.6", "@types/react": "^19.2.18", "@types/react-dom": "^19.2.4", "@vitejs/plugin-react": "^6.0.4", "react": "^19.2.8", "react-dom": "^19.2.8", "tsx": "^4.20.6", "typescript": "^5.9.3", "vite": "^8.1.5" }
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/server.ts",
+    "dev:web": "vite",
+    "build:api": "tsc -p tsconfig.build.json",
+    "build:web": "vite build",
+    "build": "npm run build:api && npm run build:web",
+    "start": "node --env-file-if-exists=.env dist/src/server.js",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "check": "npm run typecheck && npm run build && npm test",
+    "seed": "node --env-file-if-exists=.env --import tsx src/cli.ts seed",
+    "migrate": "node --env-file-if-exists=.env --import tsx src/cli.ts migrate",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.web.json",
+    "admin": "node --env-file-if-exists=.env --import tsx src/cli.ts enroll-admin",
+    "keygen": "node --env-file-if-exists=.env --import tsx src/cli.ts keygen",
+    "retention": "node --env-file-if-exists=.env --import tsx src/cli.ts retention",
+    "test:e2e": "playwright test",
+    "format": "prettier --write src web tests *.json *.ts *.yml .github/workflows/*.yml",
+    "format:check": "prettier --check src web tests *.json *.ts *.yml .github/workflows/*.yml"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.1.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/static": "^10.1.3",
+    "fastify": "^5.12.3",
+    "fastify-raw-body": "^6.0.1",
+    "jose": "^6.2.12",
+    "nodemailer": "^10.0.0",
+    "pg": "^8.16.3",
+    "stripe": "^22.5.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.10.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.15.6",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.4",
+    "prettier": "^3.9.6",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.5"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.12 <27"
+  }
 }

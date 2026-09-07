@@ -1,6 +1,0 @@
-import { PrivateIdService } from './domain.js';
-const service = new PrivateIdService();
-const issuer = await service.register({ email: 'issuer@synthetic.test', password: 'synthetic issuer password', roles: ['ISSUER_ADMIN'] });
-const fixtures = [await service.register({ email: 'adult@synthetic.test', password: 'synthetic adult password', birthDate: '1990-01-01', country: 'DE', identityVerified: true, uniquePerson: true }), await service.register({ email: 'underage@synthetic.test', password: 'synthetic minor password', birthDate: '2014-01-01', country: 'DE', identityVerified: true, uniquePerson: true }), await service.register({ email: 'investor@synthetic.test', password: 'synthetic investor password', birthDate: '1985-01-01', country: 'DE', identityVerified: true, uniquePerson: true, kycValid: true, investorEligible: true }), await service.register({ email: 'director@synthetic.test', password: 'synthetic director password', birthDate: '1980-01-01', country: 'NL', identityVerified: true, uniquePerson: true })];
-service.issueCredential(issuer, fixtures[3].id, { type: 'AuthorizedCompanySignatory', claims: { authorized_company_signatory: true } });
-console.log(JSON.stringify({ seed: 'PrivateID synthetic development fixtures', users: service.users.size, credentials: service.credentials.size }, null, 2));

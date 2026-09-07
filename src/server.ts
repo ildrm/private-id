@@ -1,2 +1,42 @@
-import { buildApp } from './app.js'; import { createPool, migrate } from './database.js';import{PrivateIdService,SignedCredentialProofProvider}from'./domain.js';import{PostgresStateStore}from'./state-store.js';import{BillingService,PostgresBillingStore,StripeGateway,UnavailableBillingGateway,type Plan}from'./billing.js';import staticPlugin from'@fastify/static';import{resolve}from'node:path';
-const pool=createPool();await migrate(pool);const service=new PrivateIdService(new SignedCredentialProofProvider(process.env.PRIVATEID_PROOF_SECRET??'',process.env.PRIVATEID_ISSUER??''),new PostgresStateStore(pool));await service.hydrate();const plans:Plan[]=[{id:'free',name:'Free',priceMonthly:0,currency:'USD',features:['Identity wallet'],roleLimits:{proofs:20}},{id:'professional',name:'Professional',priceMonthly:1200,currency:'USD',stripePriceId:process.env.STRIPE_PRICE_PROFESSIONAL,features:['Expanded wallet','Priority support'],roleLimits:{proofs:100}},{id:'business',name:'Business',priceMonthly:4900,currency:'USD',stripePriceId:process.env.STRIPE_PRICE_BUSINESS,features:['Issuer and verifier workspace'],roleLimits:{proofs:1000}}];const gateway=process.env.STRIPE_SECRET_KEY?new StripeGateway(process.env.STRIPE_SECRET_KEY,process.env.STRIPE_WEBHOOK_SECRET??''):new UnavailableBillingGateway();const billing=new BillingService(plans,new PostgresBillingStore(pool),gateway,process.env.SITE_URL??'http://localhost:3001');const app=await buildApp(service,billing);await app.register(staticPlugin,{root:resolve(process.cwd(),'web-dist'),prefix:'/site/'});app.addHook('onClose',async()=>pool.end());await app.listen({port:Number(process.env.PORT??3001),host:'0.0.0.0'});
+import { resolve } from "node:path";
+import staticPlugin from "@fastify/static";
+import { loadConfig } from "./config.js";
+import { openDatabase } from "./runtime.js";
+import { createServices } from "./services.js";
+import { buildApp } from "./app.js";
+import { BackgroundJobs } from "./jobs.js";
+const config = loadConfig(),
+  db = await openDatabase(config);
+try {
+  const services = await createServices(db, config),
+    app = await buildApp(services);
+  const jobs = new BackgroundJobs(db, config, services.billing, (event, code) =>
+    app.log.error({ event, code }),
+  );
+  await app.register(staticPlugin, {
+    root: resolve(process.cwd(), "web-dist"),
+    prefix: "/site/",
+    cacheControl: true,
+    maxAge: 3600000,
+  });
+  app.addHook("onClose", async () => {
+    await jobs.stop();
+    await db.close();
+  });
+  let closing = false;
+  const shutdown = async () => {
+    if (closing) return;
+    closing = true;
+    const timeout = setTimeout(() => process.exit(1), 30000);
+    timeout.unref();
+    await app.close();
+    clearTimeout(timeout);
+  };
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
+  await app.listen({ host: config.host, port: config.port });
+  jobs.start();
+} catch (error) {
+  await db.close();
+  throw error;
+}

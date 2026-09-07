@@ -1,0 +1,152 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 513B done
+#1 DONE 0.1s
+
+#2 [internal] load metadata for docker.io/library/node:22-alpine
+#2 DONE 6.9s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [build 1/9] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#4 resolve docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 158.14kB 0.2s done
+#5 DONE 0.2s
+
+#4 [build 1/9] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#4 sha256:5e275a5205a078c58e96d07db2891244cea6f217eb335edba0807ddf3661b59e 446B / 446B 0.3s done
+#4 sha256:2b8c8ae4a685bc76bf1ef092a36b1864b9faa9530a8b5e4af7d45d57ad3eda75 0B / 1.26MB 0.2s
+#4 sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 0B / 52.67MB 0.2s
+#4 sha256:2b8c8ae4a685bc76bf1ef092a36b1864b9faa9530a8b5e4af7d45d57ad3eda75 1.26MB / 1.26MB 1.0s done
+#4 sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 3.15MB / 52.67MB 1.5s
+#4 sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 9.44MB / 52.67MB 1.7s
+#4 sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 14.68MB / 52.67MB 1.8s
+#4 sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 22.02MB / 52.67MB 2.0s
+#4 sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 28.31MB / 52.67MB 2.1s
+#4 sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 34.60MB / 52.67MB 2.3s
+#4 sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 40.89MB / 52.67MB 2.4s
+#4 sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 47.19MB / 52.67MB 2.6s
+#4 sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 52.67MB / 52.67MB 2.7s done
+#4 extracting sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c
+#4 extracting sha256:b05773cc67e1fae38d08591539fcbce6de089281d25fb69a383adc38773c3b6c 1.9s done
+#4 DONE 4.7s
+
+#4 [build 1/9] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#4 extracting sha256:2b8c8ae4a685bc76bf1ef092a36b1864b9faa9530a8b5e4af7d45d57ad3eda75 0.0s done
+#4 extracting sha256:5e275a5205a078c58e96d07db2891244cea6f217eb335edba0807ddf3661b59e done
+#4 DONE 4.7s
+
+#6 [build 2/9] WORKDIR /app
+#6 DONE 0.2s
+
+#7 [stage-1 3/7] COPY package*.json ./
+#7 DONE 0.0s
+
+#8 [build 3/9] COPY package*.json tsconfig.json ./
+#8 DONE 0.0s
+
+#9 [stage-1 4/7] RUN npm ci --omit=dev
+#9 3.629
+#9 3.629 added 98 packages, and audited 99 packages in 3s
+#9 3.629
+#9 3.629 36 packages are looking for funding
+#9 3.629   run `npm fund` for details
+#9 3.634
+#9 3.634 2 vulnerabilities (1 moderate, 1 high)
+#9 3.634
+#9 3.634 To address all issues, run:
+#9 3.634   npm audit fix
+#9 3.634
+#9 3.634 Run `npm audit` for details.
+#9 3.635 npm notice
+#9 3.635 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#9 3.635 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#9 3.635 npm notice To update run: npm install -g npm@12.0.2
+#9 3.635 npm notice
+#9 DONE 4.0s
+
+#10 [build 4/9] RUN npm ci
+#10 4.208
+#10 4.208 added 125 packages, and audited 126 packages in 3s
+#10 4.208
+#10 4.208 44 packages are looking for funding
+#10 4.208   run `npm fund` for details
+#10 4.211
+#10 4.211 2 vulnerabilities (1 moderate, 1 high)
+#10 4.211
+#10 4.211 To address all issues, run:
+#10 4.211   npm audit fix
+#10 4.211
+#10 4.211 Run `npm audit` for details.
+#10 4.212 npm notice
+#10 4.212 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#10 4.212 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#10 4.212 npm notice To update run: npm install -g npm@12.0.2
+#10 4.212 npm notice
+#10 DONE 4.3s
+
+#11 [build 5/9] COPY src ./src
+#11 DONE 0.1s
+
+#12 [build 6/9] COPY web ./web
+#12 DONE 0.0s
+
+#13 [build 7/9] COPY vite.config.ts ./vite.config.ts
+#13 DONE 0.0s
+
+#14 [build 8/9] COPY migrations ./migrations
+#14 DONE 0.0s
+
+#15 [build 9/9] RUN npm run build
+#15 0.176
+#15 0.176 > privateid@0.1.0 build
+#15 0.176 > npm run build:api && npm run build:web
+#15 0.176
+#15 0.250
+#15 0.250 > privateid@0.1.0 build:api
+#15 0.250 > tsc -p tsconfig.json
+#15 0.250
+#15 2.130
+#15 2.130 > privateid@0.1.0 build:web
+#15 2.130 > vite build
+#15 2.130
+#15 2.284 vite v8.2.1 building client environment for production...
+#15 2.294 [2K
+transforming...✓ 15 modules transformed.
+#15 2.362 rendering chunks...
+#15 2.388 computing gzip size...
+#15 2.391 web-dist/index.html                   0.43 kB │ gzip:  0.29 kB
+#15 2.391 web-dist/assets/index-DGzFv0t5.css    7.30 kB │ gzip:  2.16 kB
+#15 2.391 web-dist/assets/index-IoWEcJxy.js   205.58 kB │ gzip: 64.12 kB
+#15 2.391
+#15 2.391 ✓ built in 106ms
+#15 DONE 2.4s
+
+#16 [stage-1 5/7] COPY --from=build /app/dist ./dist
+#16 DONE 0.1s
+
+#17 [stage-1 6/7] COPY --from=build /app/migrations ./migrations
+#17 DONE 0.0s
+
+#18 [stage-1 7/7] COPY --from=build /app/web-dist ./web-dist
+#18 DONE 0.0s
+
+#19 exporting to image
+#19 exporting layers
+#19 exporting layers 1.1s done
+#19 exporting manifest sha256:f01a1d86b5a58b816522021a468c9bb2bcd294e4b9338df4598cd6f581224ef8 done
+#19 exporting config sha256:b5b1b7ee6ef3c2be5ef85a6fd7a1c39d00040da79826e8462432e4f00fb5e738 done
+#19 exporting attestation manifest sha256:11cb94589288d6ba5b96df38f2d967be8d9d1566341473846162067caaa87903 done
+#19 exporting manifest list sha256:778ef51089b1128bca02ac9d85a2419d27bdcdda84945a6b682a02cab11363d3 done
+#19 naming to docker.io/library/privateid-review:128c25c-20260907 done
+#19 unpacking to docker.io/library/privateid-review:128c25c-20260907
+#19 unpacking to docker.io/library/privateid-review:128c25c-20260907 0.6s done
+#19 DONE 1.7s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/xbew8qxhcrci5lgbxakuavfkb
